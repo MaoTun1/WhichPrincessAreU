@@ -4,3 +4,4 @@ Bilgisayarlı görü projesi olan, Java dilinde opencv kütüphanesi kullanarak 
 
 
 
+![image](https://github.com/user-attachments/assets/16e944b0-562d-45e7-83f5-54a593346d91)
