@@ -1,0 +1,115 @@
+package whichPrincessAreU;
+
+import org.opencv.core.*;
+import org.opencv.imgcodecs.Imgcodecs;
+import org.opencv.imgproc.Imgproc;
+import org.opencv.objdetect.CascadeClassifier;
+
+import java.io.File;
+import java.util.Arrays;
+
+public class PrincessMatcher {
+
+    static {
+        System.loadLibrary(Core.NATIVE_LIBRARY_NAME);
+    }
+
+    public String findMostSimilarPrincess(String userPhotoPath, String imagePath, String haarCascadePath) {
+        CascadeClassifier faceDetector = new CascadeClassifier(haarCascadePath);
+
+        // Kullanıcı fotoğrafını yükleme
+        Mat userImage = Imgcodecs.imread(userPhotoPath);
+        if (userImage.empty()) {
+            System.out.println("Kullanıcı fotoğrafı yüklenemedi!");
+            return null;
+        }
+
+        // Kullanıcı fotoğrafındaki yüzü algılama
+        MatOfRect userFaces = new MatOfRect();
+        faceDetector.detectMultiScale(userImage, userFaces);
+
+        if (userFaces.toArray().length == 0) {
+            System.out.println("Kullanıcı fotoğrafında yüz algılanamadı!");
+            return null;
+        }
+
+        // Kullanıcının yüz bölgesini kırpma
+        Rect userFace = userFaces.toArray()[0];
+        Mat userFaceImage = new Mat(userImage, userFace);
+
+        // Prenses fotoğraflarını analiz etme
+        File folder = new File(imagePath);
+        File[] princessFiles = folder.listFiles((dir, name) -> name.endsWith(".png"));
+        if (princessFiles == null || princessFiles.length == 0) {
+            System.out.println("Prenses görselleri bulunamadı!");
+            return null;
+        }
+
+        double bestMatchScore = Double.MIN_VALUE;
+        String bestMatchPrincess = null;
+
+        for (File princessFile : princessFiles) {
+            System.out.println("Karşılaştırılıyor: " + princessFile.getName());
+
+            Mat princessImage = Imgcodecs.imread(princessFile.getAbsolutePath());
+            if (princessImage.empty()) {
+                System.out.println("Prenses görseli yüklenemedi: " + princessFile.getName());
+                continue;
+            }
+
+            // Histogram karşılaştırma
+            double similarity = compareHistograms(userFaceImage, princessImage);
+            System.out.println("Benzerlik skoru (" + princessFile.getName() + "): " + similarity);
+
+            if (similarity > bestMatchScore) {
+                bestMatchScore = similarity;
+                bestMatchPrincess = princessFile.getName();
+            }
+        }
+
+        return bestMatchPrincess;
+    }
+
+    private double compareHistograms(Mat img1, Mat img2) {
+        // RGB'den gri tonlamaya dönüştürme
+        Mat grayImg1 = new Mat();
+        Mat grayImg2 = new Mat();
+        Imgproc.cvtColor(img1, grayImg1, Imgproc.COLOR_BGR2GRAY);
+        Imgproc.cvtColor(img2, grayImg2, Imgproc.COLOR_BGR2GRAY);
+
+        // Gri tonlamadan binary forma dönüştürme
+        Mat binaryImg1 = new Mat();
+        Mat binaryImg2 = new Mat();
+        Imgproc.threshold(grayImg1, binaryImg1, 128, 255, Imgproc.THRESH_BINARY);
+        Imgproc.threshold(grayImg2, binaryImg2, 128, 255, Imgproc.THRESH_BINARY);
+
+        // Görsellerin boyutlarını eşitleme
+        Mat resizedImg2 = new Mat();
+        Imgproc.resize(binaryImg2, resizedImg2, binaryImg1.size());
+
+        // Piksel bazında karşılaştırma: Eşleşen beyaz piksellerin oranı
+        int totalPixels = (int) (binaryImg1.total());
+        int matchingPixels = Core.countNonZero(binaryImg1.mul(resizedImg2));
+
+        // Benzerlik oranını döndür
+        return (double) matchingPixels / totalPixels;
+    }
+
+    public static void main(String[] args) {
+        PrincessMatcher matcher = new PrincessMatcher();
+
+        // Kullanıcı ve prenses görsellerinin yollarını tanımlayın
+        String userPhotoPath = "src/user/user.png";
+        String imagePath = "src/images";
+        String haarCascadePath = "src/resources/haarcascade_frontalface_default.xml";
+
+        // Benzerlik hesaplaması
+        String bestMatchPrincess = matcher.findMostSimilarPrincess(userPhotoPath, imagePath, haarCascadePath);
+
+        if (bestMatchPrincess != null) {
+            System.out.println("En çok benzeyen prenses: " + bestMatchPrincess);
+        } else {
+            System.out.println("Bir eşleşme bulunamadı veya bir hata oluştu.");
+        }
+    }
+}

@@ -1,0 +1,80 @@
+package whichPrincessAreU;
+
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.io.File;
+
+public class PrincessMatcherGUI {
+
+    private JLabel userPhotoLabel;
+    private JLabel resultPhotoLabel;
+    private PrincessMatcher matcher;
+
+    public PrincessMatcherGUI() {
+        matcher = new PrincessMatcher();
+
+        JFrame frame = new JFrame("Which Princess Are You?");
+        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        frame.setSize(800, 600);
+        frame.setLayout(null);
+
+        userPhotoLabel = new JLabel();
+        userPhotoLabel.setBounds(50, 150, 200, 200);
+        userPhotoLabel.setBorder(BorderFactory.createLineBorder(Color.BLACK));
+        frame.add(userPhotoLabel);
+
+        JButton uploadButton = new JButton("Upload Photo");
+        uploadButton.setBounds(90, 370, 120, 30);
+        frame.add(uploadButton);
+
+        JLabel titleLabel = new JLabel("Which Princess Are You?", SwingConstants.CENTER);
+        titleLabel.setFont(new Font("Arial", Font.BOLD, 24));
+        titleLabel.setBounds(200, 20, 400, 30);
+        frame.add(titleLabel);
+
+        resultPhotoLabel = new JLabel();
+        resultPhotoLabel.setBounds(550, 150, 200, 200);
+        resultPhotoLabel.setBorder(BorderFactory.createLineBorder(Color.BLACK));
+        frame.add(resultPhotoLabel);
+
+        JButton runButton = new JButton("Run");
+        runButton.setBounds(350, 400, 100, 30);
+        frame.add(runButton);
+
+        uploadButton.addActionListener(e -> {
+            JFileChooser fileChooser = new JFileChooser();
+            int result = fileChooser.showOpenDialog(frame);
+            if (result == JFileChooser.APPROVE_OPTION) {
+                File selectedFile = fileChooser.getSelectedFile();
+                String destinationPath = "src/user/user2.png";
+                selectedFile.renameTo(new File(destinationPath));
+                ImageIcon userImage = new ImageIcon(destinationPath);
+                Image scaledImage = userImage.getImage().getScaledInstance(200, 200, Image.SCALE_SMOOTH);
+                userPhotoLabel.setIcon(new ImageIcon(scaledImage));
+            }
+        });
+
+        runButton.addActionListener(e -> {
+            String userPhotoPath = "src/user/user2.png";
+            String imagePath = "src/images";
+            String haarCascadePath = "src/resources/haarcascade_frontalface_default.xml";
+
+            String bestMatchPrincess = matcher.findMostSimilarPrincess(userPhotoPath, imagePath, haarCascadePath);
+            if (bestMatchPrincess != null) {
+                ImageIcon resultImage = new ImageIcon(imagePath + "/" + bestMatchPrincess);
+                Image scaledResultImage = resultImage.getImage().getScaledInstance(200, 200, Image.SCALE_SMOOTH);
+                resultPhotoLabel.setIcon(new ImageIcon(scaledResultImage));
+            } else {
+                JOptionPane.showMessageDialog(frame, "No match found!");
+            }
+        });
+
+        frame.setVisible(true);
+    }
+
+    public static void main(String[] args) {
+        SwingUtilities.invokeLater(PrincessMatcherGUI::new);
+    }
+}

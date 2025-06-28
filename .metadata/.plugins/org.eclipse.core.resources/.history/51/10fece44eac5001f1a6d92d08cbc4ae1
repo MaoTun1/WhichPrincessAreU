@@ -1,0 +1,108 @@
+package whichPrincessAreU;
+
+import org.opencv.core.*;
+import org.opencv.imgcodecs.Imgcodecs;
+import org.opencv.imgproc.Imgproc;
+import org.opencv.objdetect.CascadeClassifier;
+
+import java.io.File;
+import java.util.List;
+import java.util.Arrays; // Ayrıca `List.of` yerine `Arrays.asList` kullanılabilir.
+
+public class PrincessMatcher {
+
+    static {
+        System.loadLibrary(Core.NATIVE_LIBRARY_NAME);
+    }
+
+    public static void main(String[] args) {
+        // Haar Cascade XML dosyasını yükleyin
+        String haarCascadePath = "src/resources/haarcascade_frontalface_default.xml";
+        CascadeClassifier faceDetector = new CascadeClassifier(haarCascadePath);
+
+        // Kullanıcı fotoğrafını yükleme
+        String userPhotoPath = "src/user/user5.png";
+        Mat userImage = Imgcodecs.imread(userPhotoPath);
+        if (userImage.empty()) {
+            System.out.println("Kullanıcı fotoğrafı yüklenemedi!");
+            return;
+        }
+
+        // Kullanıcı fotoğrafındaki yüzü algılama
+        MatOfRect userFaces = new MatOfRect();
+        faceDetector.detectMultiScale(userImage, userFaces);
+
+        if (userFaces.toArray().length == 0) {
+            System.out.println("Kullanıcı fotoğrafında yüz algılanamadı!");
+            return;
+        }
+
+        // Kullanıcının yüz bölgesini kırpma
+        Rect userFace = userFaces.toArray()[0];
+        Mat userFaceImage = new Mat(userImage, userFace);
+
+        // Prenses fotoğraflarını analiz etme
+        String imagePath = "src/images"; // Prenses görsellerinin bulunduğu klasör
+        File folder = new File(imagePath);
+        File[] princessFiles = folder.listFiles((dir, name) -> name.endsWith(".png"));
+        if (princessFiles == null || princessFiles.length == 0) {
+            System.out.println("Prenses görselleri bulunamadı!");
+            return;
+        }
+
+        double bestMatchScore = Double.MIN_VALUE;
+        String bestMatchPrincess = null;
+
+        for (File princessFile : princessFiles) {
+            System.out.println("Karşılaştırılıyor: " + princessFile.getName());
+
+            Mat princessImage = Imgcodecs.imread(princessFile.getAbsolutePath());
+            if (princessImage.empty()) {
+                System.out.println("Prenses görseli yüklenemedi: " + princessFile.getName());
+                continue;
+            }
+
+            // Histogram karşılaştırma
+            double similarity = compareHistograms(userFaceImage, princessImage);
+            System.out.println("Benzerlik skoru (" + princessFile.getName() + "): " + similarity);
+
+            if (similarity > bestMatchScore) {
+                bestMatchScore = similarity;
+                bestMatchPrincess = princessFile.getName();
+            }
+        }
+
+        System.out.println("En çok benzeyen prenses: " + bestMatchPrincess + " (Benzerlik skoru: " + bestMatchScore + ")");
+    }
+
+    private static double compareHistograms(Mat img1, Mat img2) {
+    	 // Renkleri HSV'ye dönüştürme
+        Mat hsvImg1 = new Mat();
+        Mat hsvImg2 = new Mat();
+        Imgproc.cvtColor(img1, hsvImg1, Imgproc.COLOR_BGR2HSV);
+        Imgproc.cvtColor(img2, hsvImg2, Imgproc.COLOR_BGR2HSV);
+
+        // Maske oluşturma ve saç bölgesine odaklanma
+        Mat mask1 = new Mat();
+        Mat mask2 = new Mat();
+        Core.inRange(hsvImg1, new Scalar(0, 10, 0), new Scalar(180, 255, 50), mask1); // Siyah saç için maskeleme
+        Core.inRange(hsvImg2, new Scalar(0, 10, 0), new Scalar(180, 255, 50), mask2);
+
+        Mat result1 = new Mat();
+        Mat result2 = new Mat();
+        Core.bitwise_and(hsvImg1, hsvImg1, result1, mask1);
+        Core.bitwise_and(hsvImg2, hsvImg2, result2, mask2);
+
+        // Histogram hesaplama
+        Mat histImg1 = new Mat();
+        Mat histImg2 = new Mat();
+        Imgproc.calcHist(Arrays.asList(result1), new MatOfInt(0, 1), new Mat(), histImg1, new MatOfInt(50, 60), new MatOfFloat(0, 180, 0, 256));
+        Imgproc.calcHist(Arrays.asList(result2), new MatOfInt(0, 1), new Mat(), histImg2, new MatOfInt(50, 60), new MatOfFloat(0, 180, 0, 256));
+
+        Core.normalize(histImg1, histImg1, 0, 1, Core.NORM_MINMAX);
+        Core.normalize(histImg2, histImg2, 0, 1, Core.NORM_MINMAX);
+
+        // Histogram karşılaştırma (korelasyon yöntemi)
+        return Imgproc.compareHist(histImg1, histImg2, Imgproc.HISTCMP_CORREL);
+    }
+}
